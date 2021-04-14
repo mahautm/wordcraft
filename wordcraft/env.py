@@ -10,8 +10,8 @@ from utils.word2feature import FeatureMap
 from wordcraft.recipe_book import Recipe, RecipeBook
 
 
-NO_RECIPE_PENALTY = -0.1
-IRRELEVANT_RECIPE_PENALTY = -0.1
+NO_RECIPE_PENALTY = 0
+IRRELEVANT_RECIPE_PENALTY = 0
 GOAL_REWARD = 1.0
 SUBGOAL_REWARD = 1.0
 
