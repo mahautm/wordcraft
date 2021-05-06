@@ -16,7 +16,7 @@ GOAL_REWARD = 1.0
 SUBGOAL_REWARD = 1.0
 
 
-class WordCraftEnv_NoGoal(gym.Env):
+class WordCraftEnvNoGoal(gym.Env):
     """
     Simple text-only RL environment for crafting multi-step recipes.
 
@@ -118,6 +118,7 @@ class WordCraftEnv_NoGoal(gym.Env):
         self.discovered = []
 
     def reset(self):
+        self.discovered = []
         self.episode_step = 0
         self.episode_mix_steps = 0
         self.episode_reward = 0
@@ -152,12 +153,12 @@ class WordCraftEnv_NoGoal(gym.Env):
         return 2 ** depth - 1
 
     def _reset_table(self):
-        self.discovered = []
+
         if self.task:
 
-            _task = self.env.recipe_book.sample_task(depth=self.env.sample_depth)
-            while _task.goal[0] == self.env.task.goal[0]:
-                _task = self.env.recipe_book.sample_task(depth=self.env.sample_depth)
+            _task = self.recipe_book.sample_task(depth=self.sample_depth)
+            while _task.goal[0] == self.task.goal[0]:
+                _task = self.recipe_book.sample_task(depth=self.sample_depth)
             self.table = list(
                 self.task.base_entities + self.distractors + _task.base_entities
             )
@@ -204,12 +205,12 @@ class WordCraftEnv_NoGoal(gym.Env):
 
     def systematic_proportional_reward(self, action):
         # Detect reward :
-        if len(self.env.selection) == self.env.max_selection_size - 1:
+        if len(self.selection) == self.max_selection_size - 1:
             # check depth of created entity
-            i = self.env.table_index[action]
-            e = self.env.recipe_book.entities[i]
-            recipe = Recipe(np.concatenate((self.env.selection, [e])))
-            word = self.env.recipe_book.evaluate_recipe(recipe)
+            i = self.table_index[action]
+            e = self.recipe_book.entities[i]
+            recipe = Recipe(np.concatenate((self.selection, [e])))
+            word = self.recipe_book.evaluate_recipe(recipe)
             if word is not None and word not in self.discovered:
                 # TODO : apply modifier depending on depth
                 self.discovered.append(word)
@@ -246,14 +247,14 @@ class WordCraftEnv_NoGoal(gym.Env):
             # Evaluate selection
             recipe = Recipe(self.selection)
             result = self.recipe_book.evaluate_recipe(recipe)
-
-            elif result == self.task.goal:
+            if result == self.task.goal:
                 self.done = True
+            if result != None and result not in self.discovered:
+                reward = 1
+                self.discovered.append(result)
             elif result in self.task.intermediate_entities:
                 if result not in self.subgoal_history:
                     self.subgoal_history.add(result)
-
-			reward = self.systematic_proportional_reward(action) #
 
             self.episode_reward += reward
 
@@ -310,6 +311,6 @@ class WordCraftEnv_NoGoal(gym.Env):
 
 
 gym.envs.registration.register(
-    id="wordcraft-multistep-no_goal-v0",
+    id="wordcraft-multistep-no-goal-v0",
     entry_point=f"{__name__}:WordCraftEnvNoGoal",
 )
