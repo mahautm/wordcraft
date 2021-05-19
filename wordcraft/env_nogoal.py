@@ -4,6 +4,7 @@ from enum import IntEnum
 import numpy as np
 import gym
 from gym.utils import seeding
+import re
 
 from utils import seed as utils_seed
 from utils.word2feature import FeatureMap
@@ -80,7 +81,17 @@ class WordCraftEnvNoGoal(gym.Env):
         self.num_distractors = num_distractors
         self.uniform_distractors = uniform_distractors
 
-        self.max_table_size = 2 ** max_depth + num_distractors + self.max_mix_steps + 2
+        self.orig_table = list(
+            [
+                entity
+                for entity in self.recipe_book.entity2level
+                if self.recipe_book.entity2level[entity] == 0
+                and entity not in self.recipe_book.distractors
+            ]
+        )
+        self.max_table_size = (
+            2 ** max_depth + num_distractors + self.max_mix_steps + 4
+        )  # + 4 is to go from 2 base elements to 6 (3 per branch)
 
         self.task = None
         self.distractors = []
@@ -124,11 +135,14 @@ class WordCraftEnvNoGoal(gym.Env):
         self.episode_reward = 0
         self.done = False
 
-        self.task = self.recipe_book.sample_task(depth=self.sample_depth)
-        self.distractors = self.recipe_book.sample_distractors(
-            self.task, self.num_distractors, uniform=self.uniform_distractors
+        # self.task = self.recipe_book.sample_task(depth=self.sample_depth)
+        # self.distractors = self.recipe_book.sample_distractors(
+        #     self.task, self.num_distractors, uniform=self.uniform_distractors
+        # )
+        # self.goal_features = self.feature_map.feature(self.task.goal)
+        self.distractors = np.random.choice(
+            self.recipe_book.distractors, self.num_distractors
         )
-        self.goal_features = self.feature_map.feature(self.task.goal)
         self._reset_selection()
         self._reset_table()
         self._reset_history()
@@ -154,17 +168,19 @@ class WordCraftEnvNoGoal(gym.Env):
 
     def _reset_table(self):
 
-        if self.task:
+        # if self.task:
 
-            _task = self.recipe_book.sample_task(depth=self.sample_depth)
-            while _task.goal[0] == self.task.goal[0]:
-                _task = self.recipe_book.sample_task(depth=self.sample_depth)
-            self.table = list(
-                self.task.base_entities + self.distractors + _task.base_entities
-            )
-            self.np_random.shuffle(self.table)
-        else:
-            self.table = []
+        #     _task = self.recipe_book.sample_task(depth=self.sample_depth)
+        #     while _task.goal[0] == self.task.goal[0]:
+        #         _task = self.recipe_book.sample_task(depth=self.sample_depth)
+        #     self.table = list(
+        #         self.task.base_entities + self.distractors + _task.base_entities
+        #     )
+        #     self.np_random.shuffle(self.table)
+        # else:
+
+        self.table = self.orig_table
+        self.np_random.shuffle(self.table)
         self.table_index = -np.ones(self.max_table_size, dtype=int)
         self.table_features = np.zeros(
             (self.max_table_size, self.feature_map.feature_dim)
@@ -174,10 +190,10 @@ class WordCraftEnvNoGoal(gym.Env):
         self.table_index[:num_start_items] = np.array(
             [self.recipe_book.entity2index[e] for e in self.table], dtype=int
         )
-        if self.task:
-            self.table_features[:num_start_items, :] = np.array(
-                [self.feature_map.feature(e) for e in self.table]
-            )
+        # if self.task:
+        self.table_features[:num_start_items, :] = np.array(
+            [self.feature_map.feature(e) for e in self.table]
+        )
 
     def _reset_selection(self):
         self.selection = []
@@ -195,28 +211,29 @@ class WordCraftEnvNoGoal(gym.Env):
         since torchbeast stores actions in a shared_memory tensor shared among actor processes
         """
         return {
-            "goal_index": [self.recipe_book.entity2index[self.task.goal]],
-            "goal_features": self.goal_features,
+            # "goal_index": [self.recipe_book.entity2index[self.task.goal]],
+            # "goal_features": self.goal_features,
             "table_index": self.table_index,
             "table_features": self.table_features,
             "selection_index": self.selection_index,
             "selection_features": self.selection_features,
         }
 
-    def systematic_proportional_reward(self, action):
-        # Detect reward :
-        if len(self.selection) == self.max_selection_size - 1:
-            # check depth of created entity
-            i = self.table_index[action]
-            e = self.recipe_book.entities[i]
-            recipe = Recipe(np.concatenate((self.selection, [e])))
-            word = self.recipe_book.evaluate_recipe(recipe)
-            if word is not None and word not in self.discovered:
-                # TODO : apply modifier depending on depth
-                self.discovered.append(word)
-                reward = 1
-                return reward
-        return 0
+    # def systematic_proportional_reward(self, action):
+    #     # Detect reward :
+    #     if len(self.selection) == self.max_selection_size - 1:
+    #         # check depth of created entity
+    #         i = self.table_index[action]
+    #         e = self.recipe_book.entities[i]
+    #         recipe = Recipe(np.concatenate((self.selection, [e])))
+    #         word = self.recipe_book.evaluate_recipe(recipe)
+    #         if word is not None and word not in self.discovered:
+    #             # TODO : apply modifier depending on depth
+    #             self.discovered.append(word)
+    #             _num = [int(s) for s in re.findall(r"\d+", word)]
+    #             reward = self.recipe_book.entity2level[word] + 1
+    #             return reward
+    #     return 0
 
     def step(self, action):
         reward = 0
@@ -247,14 +264,14 @@ class WordCraftEnvNoGoal(gym.Env):
             # Evaluate selection
             recipe = Recipe(self.selection)
             result = self.recipe_book.evaluate_recipe(recipe)
-            if result == self.task.goal:
-                self.done = True
+            # if result == self.task.goal: # TODO : should I add stopping ?
+            #     self.done = True
             if result != None and result not in self.discovered:
-                reward = 1
+                reward = self.recipe_book.entity2level[result]
                 self.discovered.append(result)
-            elif result in self.task.intermediate_entities:
-                if result not in self.subgoal_history:
-                    self.subgoal_history.add(result)
+            # elif result in self.task.intermediate_entities:
+            #     if result not in self.subgoal_history:
+            #         self.subgoal_history.add(result)
 
             self.episode_reward += reward
 
