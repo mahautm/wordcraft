@@ -90,7 +90,6 @@ class RecipeBook:
             for r in recipes:
                 self.recipe2entity[r] = entity
                 self.max_recipe_size = max(len(r), self.max_recipe_size)
-        print(self.recipe2entity)
         self.root_entities = set(
             [e for e in self.entities if e not in self.entity2recipes]
         )
