@@ -80,21 +80,29 @@ class WordCraftEnvNoGoal(gym.Env):
         self.max_depth = max_depth
         self.num_distractors = num_distractors
         self.uniform_distractors = uniform_distractors
-
+        # self.distractors = []
+        self.distractors = np.random.choice(
+            self.recipe_book.distractors, self.num_distractors
+        )
         self.orig_table = list(
-            [
-                entity
-                for entity in self.recipe_book.entity2level
-                if self.recipe_book.entity2level[entity] == 0
-                and entity not in self.recipe_book.distractors
-            ]
+            np.concatenate(
+                (
+                    [
+                        entity
+                        for entity in self.recipe_book.entity2level
+                        if self.recipe_book.entity2level[entity] == 0
+                        and entity not in self.recipe_book.distractors
+                    ],
+                    self.distractors,
+                )
+            )
         )
         self.max_table_size = (
             2 ** max_depth + num_distractors + self.max_mix_steps + 4
         )  # + 4 is to go from 2 base elements to 6 (3 per branch)
 
         self.task = None
-        self.distractors = []
+
         self.goal_features = np.zeros(self.feature_map.feature_dim)
 
         self._reset_table()
@@ -140,9 +148,9 @@ class WordCraftEnvNoGoal(gym.Env):
         #     self.task, self.num_distractors, uniform=self.uniform_distractors
         # )
         # self.goal_features = self.feature_map.feature(self.task.goal)
-        self.distractors = np.random.choice(
-            self.recipe_book.distractors, self.num_distractors
-        )
+        # self.distractors = np.random.choice(
+        #     self.recipe_book.distractors, self.num_distractors
+        # )
         self._reset_selection()
         self._reset_table()
         self._reset_history()
@@ -179,7 +187,7 @@ class WordCraftEnvNoGoal(gym.Env):
         #     self.np_random.shuffle(self.table)
         # else:
 
-        self.table = self.orig_table
+        self.table = list(self.orig_table)
         self.np_random.shuffle(self.table)
         self.table_index = -np.ones(self.max_table_size, dtype=int)
         self.table_features = np.zeros(
@@ -266,7 +274,9 @@ class WordCraftEnvNoGoal(gym.Env):
             result = self.recipe_book.evaluate_recipe(recipe)
             # if result == self.task.goal: # TODO : should I add stopping ?
             #     self.done = True
+            # print(action, self.selection, result)
             if result != None and result not in self.discovered:
+                # print(reward)
                 reward = self.recipe_book.entity2level[result]
                 self.discovered.append(result)
             # elif result in self.task.intermediate_entities:
