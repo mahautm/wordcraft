@@ -84,19 +84,12 @@ class WordCraftEnvNoGoal(gym.Env):
         self.distractors = np.random.choice(
             self.recipe_book.distractors, self.num_distractors
         )
-        self.orig_table = list(
-            np.concatenate(
-                (
-                    [
-                        entity
-                        for entity in self.recipe_book.entity2level
-                        if self.recipe_book.entity2level[entity] == 0
-                        and entity not in self.recipe_book.distractors
-                    ],
-                    self.distractors,
-                )
-            )
-        )
+        self.orig_table = [
+            entity
+            for entity in self.recipe_book.entity2level
+            if self.recipe_book.entity2level[entity] == 0
+            and entity not in self.recipe_book.distractors
+        ]
         self.max_table_size = (
             2 ** max_depth + num_distractors + self.max_mix_steps + 4
         )  # + 4 is to go from 2 base elements to 6 (3 per branch)
@@ -176,18 +169,18 @@ class WordCraftEnvNoGoal(gym.Env):
 
     def _reset_table(self):
 
-        # if self.task:
+        self.distractors = np.random.choice(
+            self.recipe_book.distractors, self.num_distractors
+        )
 
-        #     _task = self.recipe_book.sample_task(depth=self.sample_depth)
-        #     while _task.goal[0] == self.task.goal[0]:
-        #         _task = self.recipe_book.sample_task(depth=self.sample_depth)
-        #     self.table = list(
-        #         self.task.base_entities + self.distractors + _task.base_entities
-        #     )
-        #     self.np_random.shuffle(self.table)
-        # else:
-
-        self.table = list(self.orig_table)
+        self.table = list(
+            np.concatenate(
+                (
+                    self.orig_table,
+                    self.distractors,
+                )
+            )
+        )
         self.np_random.shuffle(self.table)
         self.table_index = -np.ones(self.max_table_size, dtype=int)
         self.table_features = np.zeros(
